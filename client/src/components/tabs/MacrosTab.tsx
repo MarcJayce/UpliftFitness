@@ -38,13 +38,19 @@ export function MacrosTab() {
   // Fetch meals for today
   const { data: meals, isLoading: isLoadingMeals } = useQuery({
     queryKey: ['/api/meals/by-date', today],
-    queryFn: () => apiRequest(`/api/meals/by-date?date=${today}`),
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/meals/by-date?date=${today}`);
+      return await res.json();
+    },
   });
 
   // Fetch nutrition goals
   const { data: nutritionGoal, isLoading: isLoadingGoals } = useQuery({
     queryKey: ['/api/nutrition-goals'],
-    queryFn: () => apiRequest('/api/nutrition-goals'),
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/nutrition-goals');
+      return await res.json();
+    },
     retry: false,
     onError: (err) => {
       console.error('Failed to fetch nutrition goals:', err);
