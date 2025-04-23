@@ -13,6 +13,7 @@ import {
   getUserById,
 } from "./auth";
 import { getDb } from "./db";
+import { and, eq, or, ilike, sql, desc, gte, lte } from "drizzle-orm";
 import { 
   users, workoutPrograms, workoutDays, exercises, workoutDayExercises,
   workoutSessions, workoutSetLogs, foodItems, meals, mealFoodItems,
@@ -23,7 +24,6 @@ import {
   insertMealFoodItemSchema, insertBodyMeasurementSchema, insertProgressPhotoSchema,
   insertNutritionGoalSchema
 } from "@shared/schema";
-import { eq, and, desc, gte, lte } from "drizzle-orm";
 
 // Extended request type with user information
 declare module 'express-session' {
@@ -234,6 +234,190 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating profile:', error);
       res.status(500).json({ message: 'An error occurred during profile update' });
+    }
+  });
+  
+  // Food and Nutrition Routes
+  app.get('/api/food-items/search', requireAuth, async (req, res) => {
+    try {
+      const db = getDb();
+      const userId = req.session.userId;
+      const { query } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ message: 'Search query is required' });
+      }
+      
+      // Search for food items matching the query
+      // Include both global items (userId is null) and user's custom items
+      const searchResults = await db.select().from(foodItems)
+        .where(
+          sql`${foodItems.name} ILIKE ${`%${query}%`}`
+        )
+        .limit(20);
+      
+      res.json(searchResults);
+    } catch (error) {
+      console.error('Error searching food items:', error);
+      res.status(500).json({ message: 'An error occurred' });
+    }
+  });
+  
+  app.post('/api/food-items', requireAuth, async (req, res) => {
+    try {
+      const db = getDb();
+      const userId = req.session.userId;
+      const schema = insertFoodItemSchema;
+      
+      const result = schema.safeParse({
+        ...req.body,
+        userId
+      });
+      
+      if (!result.success) {
+        return res.status(400).json({ message: 'Invalid input', errors: result.error.format() });
+      }
+      
+      const newFoodItem = await db.insert(foodItems).values(result.data).returning();
+      res.status(201).json(newFoodItem[0]);
+    } catch (error) {
+      console.error('Error creating food item:', error);
+      res.status(500).json({ message: 'An error occurred' });
+    }
+  });
+  
+  app.get('/api/meals/by-date', requireAuth, async (req, res) => {
+    try {
+      const db = getDb();
+      const userId = req.session.userId;
+      const { date } = req.query;
+      
+      if (!date || typeof date !== 'string') {
+        return res.status(400).json({ message: 'Date is required' });
+      }
+      
+      // Get all meals for the user on the specified date
+      const userMeals = await db.select().from(meals)
+        .where(
+          and(
+            eq(meals.userId, userId || 0),
+            eq(meals.date, date)
+          )
+        );
+      
+      // Get food items for each meal
+      const mealsWithItems = await Promise.all(userMeals.map(async (meal) => {
+        const mealFoodItemsList = await db.select().from(mealFoodItems)
+          .where(eq(mealFoodItems.mealId, meal.id));
+        
+        // Get the food item details for each meal food item
+        const items = await Promise.all(mealFoodItemsList.map(async (mealItem) => {
+          const [foodItem] = await db.select().from(foodItems)
+            .where(eq(foodItems.id, mealItem.foodItemId));
+          
+          return {
+            ...mealItem,
+            ...foodItem,
+          };
+        }));
+        
+        return {
+          ...meal,
+          items
+        };
+      }));
+      
+      res.json(mealsWithItems);
+    } catch (error) {
+      console.error('Error fetching meals:', error);
+      res.status(500).json({ message: 'An error occurred' });
+    }
+  });
+  
+  app.get('/api/meals/by-date-and-type', requireAuth, async (req, res) => {
+    try {
+      const db = getDb();
+      const userId = req.session.userId;
+      const { date, type } = req.query;
+      
+      if (!date || typeof date !== 'string' || !type || typeof type !== 'string') {
+        return res.status(400).json({ message: 'Date and type are required' });
+      }
+      
+      // Get meals of the specified type for the user on the specified date
+      const userMeals = await db.select().from(meals)
+        .where(
+          and(
+            eq(meals.userId, userId || 0),
+            eq(meals.date, date),
+            eq(meals.type, type)
+          )
+        );
+      
+      res.json(userMeals);
+    } catch (error) {
+      console.error('Error fetching meals by type:', error);
+      res.status(500).json({ message: 'An error occurred' });
+    }
+  });
+  
+  app.post('/api/meals', requireAuth, async (req, res) => {
+    try {
+      const db = getDb();
+      const userId = req.session.userId;
+      const schema = insertMealSchema;
+      
+      const result = schema.safeParse({
+        ...req.body,
+        userId
+      });
+      
+      if (!result.success) {
+        return res.status(400).json({ message: 'Invalid input', errors: result.error.format() });
+      }
+      
+      const newMeal = await db.insert(meals).values(result.data).returning();
+      res.status(201).json(newMeal[0]);
+    } catch (error) {
+      console.error('Error creating meal:', error);
+      res.status(500).json({ message: 'An error occurred' });
+    }
+  });
+  
+  app.post('/api/meals/:mealId/items', requireAuth, async (req, res) => {
+    try {
+      const db = getDb();
+      const userId = req.session.userId;
+      const { mealId } = req.params;
+      const schema = insertMealFoodItemSchema;
+      
+      // Verify the meal belongs to the user
+      const meal = await db.select().from(meals)
+        .where(
+          and(
+            eq(meals.id, parseInt(mealId)),
+            eq(meals.userId, userId || 0)
+          )
+        ).limit(1);
+      
+      if (!meal.length) {
+        return res.status(404).json({ message: 'Meal not found' });
+      }
+      
+      const result = schema.safeParse({
+        ...req.body,
+        mealId: parseInt(mealId)
+      });
+      
+      if (!result.success) {
+        return res.status(400).json({ message: 'Invalid input', errors: result.error.format() });
+      }
+      
+      const newMealItem = await db.insert(mealFoodItems).values(result.data).returning();
+      res.status(201).json(newMealItem[0]);
+    } catch (error) {
+      console.error('Error adding food to meal:', error);
+      res.status(500).json({ message: 'An error occurred' });
     }
   });
 

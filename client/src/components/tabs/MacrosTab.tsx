@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,10 +9,15 @@ import { PlusIcon, MoreVerticalIcon } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { Meal, NutritionGoal, FoodItem } from '@/lib/types';
 import { foodImages } from '@/assets/food-images';
+import { AddFoodDialog } from '@/components/macros/AddFoodDialog';
 
 export function MacrosTab() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const formattedDate = format(new Date(), 'MMMM d, yyyy');
+  
+  // State for AddFoodDialog
+  const [addFoodDialogOpen, setAddFoodDialogOpen] = useState(false);
+  const [currentMealType, setCurrentMealType] = useState<string>('breakfast');
   
   // Fetch nutrition goals
   const { data: nutritionGoal, isLoading: isLoadingGoals } = useQuery({
@@ -213,7 +218,14 @@ export function MacrosTab() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-poppins font-semibold">Today's Meals</h2>
-          <Button variant="ghost" className="text-primary flex items-center">
+          <Button 
+            variant="ghost" 
+            className="text-primary flex items-center"
+            onClick={() => {
+              setCurrentMealType('breakfast');
+              setAddFoodDialogOpen(true);
+            }}
+          >
             <PlusIcon className="h-4 w-4 mr-1" />
             Add Food
           </Button>

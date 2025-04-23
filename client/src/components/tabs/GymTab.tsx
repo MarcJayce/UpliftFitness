@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +7,12 @@ import { exerciseImages } from '@/assets/exercise-images';
 import { apiRequest } from '@/lib/queryClient';
 import { Exercise, WorkoutProgram, WorkoutDay } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CreateProgramDialog } from '@/components/gym/CreateProgramDialog';
 
 export function GymTab() {
+  // State for CreateProgramDialog
+  const [createProgramDialogOpen, setCreateProgramDialogOpen] = useState(false);
+  
   // Fetch exercises
   const { data: exercises, isLoading: isLoadingExercises } = useQuery({
     queryKey: ['/api/exercises'],
@@ -190,12 +194,18 @@ export function GymTab() {
             <CardContent className="p-4">
               <div className="text-center py-6">
                 <p className="text-muted-foreground mb-4">No active program</p>
-                <Button variant="outline">Create Program</Button>
+                <Button variant="outline" onClick={() => setCreateProgramDialogOpen(true)}>Create Program</Button>
               </div>
             </CardContent>
           )}
         </Card>
       </div>
+      
+      {/* Create Program Dialog */}
+      <CreateProgramDialog
+        open={createProgramDialogOpen}
+        onOpenChange={setCreateProgramDialogOpen}
+      />
       
       {/* Exercise Library Section */}
       <div className="mb-6">
