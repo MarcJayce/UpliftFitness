@@ -117,6 +117,13 @@ export function MacrosTab() {
 
   return (
     <div className="pb-20">
+      {/* Add Food Dialog */}
+      <AddFoodDialog 
+        open={addFoodDialogOpen} 
+        onOpenChange={setAddFoodDialogOpen} 
+        mealType={currentMealType}
+      />
+      
       {/* Daily Nutrition Overview */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
