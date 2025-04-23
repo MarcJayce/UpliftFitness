@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusIcon, ChevronRightIcon, BoltIcon, DumbbellIcon, TimerIcon } from 'lucide-react';
+import { PlusIcon, ChevronRightIcon, BoltIcon, DumbbellIcon, TimerIcon, PlayIcon } from 'lucide-react';
 import { exerciseImages } from '@/assets/exercise-images';
 import { apiRequest } from '@/lib/queryClient';
 import { Exercise, WorkoutProgram, WorkoutDay } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreateProgramDialog } from '@/components/gym/CreateProgramDialog';
+import { CreateWorkoutDialog } from '@/components/gym/CreateWorkoutDialog';
+import { useToast } from '@/hooks/use-toast';
 
 export function GymTab() {
-  // State for CreateProgramDialog
+  // State for dialogs
   const [createProgramDialogOpen, setCreateProgramDialogOpen] = useState(false);
+  const [createWorkoutDialogOpen, setCreateWorkoutDialogOpen] = useState(false);
   
   // Fetch exercises
   const { data: exercises, isLoading: isLoadingExercises } = useQuery({
@@ -77,7 +80,17 @@ export function GymTab() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-poppins font-semibold">Today's Workout</h2>
-          <Button variant="ghost" className="text-primary flex items-center">
+          <Button 
+            variant="ghost" 
+            className="text-primary flex items-center"
+            onClick={() => {
+              if (activeProgram) {
+                setCreateWorkoutDialogOpen(true);
+              } else {
+                setCreateProgramDialogOpen(true);
+              }
+            }}
+          >
             <PlusIcon className="h-4 w-4 mr-1" />
             New
           </Button>
@@ -103,7 +116,10 @@ export function GymTab() {
                   <h3 className="font-poppins font-semibold text-lg">{todaysWorkout.name}</h3>
                   <p className="text-muted-foreground text-sm">{todaysWorkout.targetMuscleGroups}</p>
                 </div>
-                <Button>Start</Button>
+                <Button>
+                  <PlayIcon className="h-4 w-4 mr-2" />
+                  Start Workout
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -115,7 +131,18 @@ export function GymTab() {
                   <h3 className="font-poppins font-semibold text-lg">Rest Day</h3>
                   <p className="text-muted-foreground text-sm">No workout scheduled for today</p>
                 </div>
-                <Button variant="outline">Add Workout</Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    if (activeProgram) {
+                      setCreateWorkoutDialogOpen(true);
+                    } else {
+                      setCreateProgramDialogOpen(true);
+                    }
+                  }}
+                >
+                  Add Workout
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -205,6 +232,14 @@ export function GymTab() {
       <CreateProgramDialog
         open={createProgramDialogOpen}
         onOpenChange={setCreateProgramDialogOpen}
+      />
+      
+      {/* Create Workout Dialog */}
+      <CreateWorkoutDialog
+        open={createWorkoutDialogOpen}
+        onOpenChange={setCreateWorkoutDialogOpen}
+        activeProgram={activeProgram}
+        defaultDayOfWeek={today}
       />
       
       {/* Exercise Library Section */}
