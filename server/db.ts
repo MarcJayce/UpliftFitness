@@ -1,48 +1,92 @@
 import postgres from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import mysql from 'mysql2/promise';
+import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres';
+import { drizzle as drizzleMysql } from 'drizzle-orm/mysql2';
 import { env } from 'process';
+import * as schema from '../shared/schema';
+import { dbConfig } from './db.config';
 
-// PostgreSQL connection pool
-let pool: postgres.Pool;
+// Connection pools
+let postgresPool: postgres.Pool;
+let mysqlPool: mysql.Pool;
 
 export async function initializeDatabase() {
+  const dbType = dbConfig.dbType;
+  
   try {
-    // Create connection pool
-    pool = new postgres.Pool({
-      connectionString: env.DATABASE_URL,
-      // Optional: You can also use individual parameters
-      // host: env.PGHOST,
-      // port: parseInt(env.PGPORT || '5432'),
-      // user: env.PGUSER,
-      // password: env.PGPASSWORD,
-      // database: env.PGDATABASE,
-    });
-    
-    console.log('PostgreSQL database connection established successfully');
-    
-    // Test connection
-    const client = await pool.connect();
-    console.log('PostgreSQL connection test successful');
-    client.release();
+    if (dbType === 'postgres') {
+      // Create PostgreSQL connection pool
+      postgresPool = new postgres.Pool({
+        connectionString: env.DATABASE_URL,
+        // Optional: You can also use individual parameters
+        // host: env.PGHOST,
+        // port: parseInt(env.PGPORT || '5432'),
+        // user: env.PGUSER,
+        // password: env.PGPASSWORD,
+        // database: env.PGDATABASE,
+      });
+      
+      console.log('PostgreSQL database connection established successfully');
+      
+      // Test connection
+      const client = await postgresPool.connect();
+      console.log('PostgreSQL connection test successful');
+      client.release();
+      
+    } else if (dbType === 'mysql') {
+      // Create MySQL connection pool
+      mysqlPool = mysql.createPool({
+        host: env.DB_HOST || 'localhost',
+        port: parseInt(env.DB_PORT || '3306'),
+        user: env.DB_USER || 'root',
+        password: env.DB_PASSWORD || 'password',
+        database: env.DB_NAME || 'uplift',
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+      });
+      
+      console.log('MySQL database connection established successfully');
+      
+      // Test connection
+      await mysqlPool.query('SELECT 1');
+      console.log('MySQL connection test successful');
+    }
     
     return true;
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    console.error(`Failed to initialize ${dbType} database:`, error);
     return false;
   }
 }
 
 export function getDb() {
-  if (!pool) {
-    throw new Error('Database not initialized. Call initializeDatabase() first.');
+  const dbType = dbConfig.dbType;
+  
+  if (dbType === 'postgres') {
+    if (!postgresPool) {
+      throw new Error('PostgreSQL database not initialized. Call initializeDatabase() first.');
+    }
+    return drizzlePostgres(postgresPool, { schema });
+  } else if (dbType === 'mysql') {
+    if (!mysqlPool) {
+      throw new Error('MySQL database not initialized. Call initializeDatabase() first.');
+    }
+    return drizzleMysql(mysqlPool, { schema });
+  } else {
+    throw new Error(`Unsupported database type: ${dbType}`);
   }
-  return drizzle(pool);
 }
 
 // Function to close database connections when shutting down
 export async function closeDatabase() {
-  if (pool) {
-    await pool.end();
-    console.log('Database connections closed');
+  const dbType = dbConfig.dbType;
+  
+  if (dbType === 'postgres' && postgresPool) {
+    await postgresPool.end();
+    console.log('PostgreSQL database connections closed');
+  } else if (dbType === 'mysql' && mysqlPool) {
+    await mysqlPool.end();
+    console.log('MySQL database connections closed');
   }
 }
