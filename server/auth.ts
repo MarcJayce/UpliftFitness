@@ -21,16 +21,42 @@ export async function createUser(
   email: string,
   password: string
 ): Promise<User> {
-  const db = getDb();
-  const hashedPassword = await hashPassword(password);
+  try {
+    // Validate inputs
+    if (!username || !email || !password) {
+      throw new Error('All fields are required');
+    }
+    if (password.length < 8) {
+      throw new Error('Password must be at least 8 characters');
+    }
 
-  const newUsers = await db.insert(users).values({
-    username,
-    email,
-    password: hashedPassword,
-  }).returning();
+    const db = getDb();
+    // Check if user exists
+    const existingUser = await getUserByUsername(username) || await getUserByEmail(email);
+    if (existingUser) {
+      throw new Error('User already exists');
+    }
 
-  return newUsers[0];
+    const hashedPassword = await hashPassword(password);
+
+    // Insert user without .returning()
+    await db.insert(users).values({
+      username,
+      email,
+      password: hashedPassword,
+    });
+
+    // Fetch the newly created user
+    const newUser = await getUserByUsername(username);
+    if (!newUser) {
+      throw new Error('Failed to retrieve created user');
+    }
+    
+    return newUser;
+  } catch (error) {
+    console.error('User creation failed:', error);
+    throw error;
+  }
 }
 
 // Get user by username

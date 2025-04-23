@@ -39,7 +39,7 @@ export async function initializeDatabase() {
         host: env.DB_HOST || 'localhost',
         port: parseInt(env.DB_PORT || '3306'),
         user: env.DB_USER || 'root',
-        password: env.DB_PASSWORD || 'password',
+        password: env.DB_PASSWORD || 'Jaycen0113',
         database: env.DB_NAME || 'uplift',
         waitForConnections: true,
         connectionLimit: 10,
@@ -72,7 +72,10 @@ export function getDb() {
     if (!mysqlPool) {
       throw new Error('MySQL database not initialized. Call initializeDatabase() first.');
     }
-    return drizzleMysql(mysqlPool, { schema });
+    return drizzleMysql(mysqlPool, { 
+      schema,
+      mode: 'default' // Add this line to specify the mode
+    });
   } else {
     throw new Error(`Unsupported database type: ${dbType}`);
   }
