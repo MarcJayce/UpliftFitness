@@ -81,9 +81,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
   );
 
-  // Authentication middleware
+  // Add type guards for userId and other parameters
+  const isValidUserId = (userId: any): userId is number =>
+    typeof userId === "number" && userId > 0;
+
+  // Update requireAuth middleware to use type guard
   const requireAuth = (req: Request, res: Response, next: Function) => {
-    if (!req.session.userId) {
+    if (!isValidUserId(req.session.userId)) {
       return res.status(401).json({ message: "Authentication required" });
     }
     next();
@@ -200,10 +204,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/me", requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId;
-      if (!userId) {
-        return res
-          .status(401)
-          .json({ message: "User ID not found in session" });
+      if (!isValidUserId(userId)) {
+        return res.status(401).json({ message: "Invalid user session" });
       }
       const user = await getUserById(userId);
 
@@ -223,10 +225,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/profile/setup", requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId;
-      if (!userId) {
-        return res
-          .status(401)
-          .json({ message: "User ID not found in session" });
+      if (!isValidUserId(userId)) {
+        return res.status(401).json({ message: "Invalid user session" });
       }
       const schema = insertUserSchema.omit({
         username: true,
@@ -261,10 +261,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/profile", requireAuth, async (req, res) => {
     try {
       const userId = req.session.userId;
-      if (!userId) {
-        return res
-          .status(401)
-          .json({ message: "User ID not found in session" });
+      if (typeof userId !== "number" || userId <= 0) {
+        return res.status(401).json({ message: "Invalid user session" });
       }
       const schema = insertUserSchema
         .omit({ username: true, password: true, email: true })
@@ -526,10 +524,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const db = getDb();
       const { id } = req.params;
+      const exerciseId = parseInt(id);
+      if (isNaN(exerciseId) || exerciseId <= 0) {
+        return res.status(400).json({ message: "Invalid exercise ID" });
+      }
       const exercise = await db
         .select()
         .from(exercises)
-        .where(eq(exercises.id, parseInt(id)))
+        .where(eq(exercises.id, exerciseId))
         .limit(1);
 
       if (!exercise.length) {
@@ -632,7 +634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
           .limit(1);
 
-        if (!userId || !program.length) {
+        if (!program.length) {
           return res.status(404).json({ message: "Workout program not found" });
         }
 
@@ -672,7 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
           .limit(1);
 
-        if (!userId || !program.length) {
+        if (!program.length) {
           return res.status(404).json({ message: "Workout program not found" });
         }
 
@@ -828,17 +830,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(sql`${workoutDayExercises.id} = LAST_INSERT_ID()`);
 
         // Get exercise details
-        if (!newDayExercise[0]?.exerciseId) {
+        const firstExercise = newDayExercise[0];
+        if (!firstExercise?.exerciseId) {
           return res.status(400).json({ message: "Exercise ID is required" });
         }
 
         const exercise = await db
           .select()
           .from(exercises)
-          .where(eq(exercises.id, newDayExercise[0].exerciseId))
+          .where(eq(exercises.id, firstExercise.exerciseId))
           .limit(1);
 
-        if (!exercise[0]) {
+        if (!exercise || !exercise[0]) {
           return res.status(404).json({ message: "Exercise not found" });
         }
 
@@ -863,6 +866,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
+      if (typeof userId !== "number") {
+        return res.status(401).json({ message: "Invalid user session" });
+      }
 
       const schema = insertWorkoutSessionSchema;
       const result = schema.safeParse({ ...req.body, userId });
@@ -878,11 +884,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(workoutSessions)
         .where(sql`${workoutSessions.id} = LAST_INSERT_ID()`);
 
-      if (!newSession[0]) {
+      const firstSession = newSession[0] as
+        | typeof workoutSessions.$inferSelect
+        | undefined;
+      if (!firstSession) {
         return res.status(500).json({ message: "Failed to create session" });
       }
 
-      res.status(201).json(newSession[0]);
+      res.status(201).json(firstSession);
     } catch (error) {
       console.error("Error creating workout session:", error);
       res.status(500).json({ message: "An error occurred" });
@@ -1344,11 +1353,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ message: "Invalid input", errors: result.error.format() });
       }
 
-      const newPhoto = await db
-        .insert(progressPhotos)
-        .values(result.data)
-        .returning();
-      res.status(201).json(newPhoto[0]);
+      await db.insert(progressPhotos).values(result.data);
+      const [newPhoto] = await db
+        .select()
+        .from(progressPhotos)
+        .where(sql`${progressPhotos.id} = LAST_INSERT_ID()`);
+      res.status(201).json(newPhoto);
     } catch (error) {
       console.error("Error adding progress photo:", error);
       res.status(500).json({ message: "An error occurred" });
