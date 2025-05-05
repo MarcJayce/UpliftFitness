@@ -67,3 +67,10 @@
 - `npm run dev:win`: Start the development server
 - `npm run build:win`: Build the application for production
 - `npm run db:push:win`: Push schema changes to the database
+
+
+Food Recognition API Ideas
+- use calorieninjas API for calculating Macros 
+- use snapcalorie ai to know food ingredients
+- use image recognition for the snapcalorie ai to know what food it is
+- use snapcalorie ai to know food ingredients and use calorieninjas API for calculating Macros 
