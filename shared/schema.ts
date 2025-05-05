@@ -119,6 +119,8 @@ export const foodItems = mysqlTable("food_items", {
   servingSize: double("serving_size"),
   servingUnit: varchar("serving_unit", { length: 50 }),
   barcode: varchar("barcode", { length: 100 }),
+  isCustom: boolean("is_custom").default(false),
+  userId: int("user_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

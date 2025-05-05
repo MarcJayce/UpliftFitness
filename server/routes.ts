@@ -918,7 +918,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eq(workoutSessions.programId, workoutPrograms.id)
         )
         .leftJoin(workoutDays, eq(workoutSessions.dayId, workoutDays.id))
-        .where(eq(workoutSessions.userId, userId))
+        .where(eq(workoutSessions.userId, userId as number))
         .orderBy(desc(workoutSessions.date))
         .limit(10);
 
@@ -939,6 +939,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = req.session.userId;
 
         // Verify the session belongs to the user
+        if (!isValidUserId(userId)) {
+          return res.status(401).json({ message: "Invalid user session" });
+        }
+
         const session = await db
           .select()
           .from(workoutSessions)
@@ -966,11 +970,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .json({ message: "Invalid input", errors: result.error.format() });
         }
 
-        const newSetLog = await db
+        const insertResult = await db
           .insert(workoutSetLogs)
-          .values(result.data)
-          .returning();
-        res.status(201).json(newSetLog[0]);
+          .values(result.data);
+        const [newSetLog] = await db
+          .select()
+          .from(workoutSetLogs)
+          .where(sql`${workoutSetLogs.id} = LAST_INSERT_ID()`);
+        res.status(201).json(newSetLog);
       } catch (error) {
         console.error("Error logging workout set:", error);
         res.status(500).json({ message: "An error occurred" });
@@ -993,7 +1000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .where(
             // Basic search functionality - can be improved with full-text search
             (q) =>
-              q.or(
+              or(
                 eq(foodItems.isCustom, false),
                 eq(foodItems.userId, req.session.userId || 0)
               )
@@ -1055,7 +1062,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userMeals = await db
         .select()
         .from(meals)
-        .where(and(eq(meals.userId, userId), eq(meals.date, new Date(date))));
+        .where(
+          and(
+            eq(meals.userId, userId as number),
+            eq(meals.date, new Date(date))
+          )
+        );
 
       // Get food items for each meal
       const mealsWithItems = await Promise.all(
@@ -1128,7 +1140,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const meal = await db
         .select()
         .from(meals)
-        .where(and(eq(meals.id, parseInt(mealId)), eq(meals.userId, userId)))
+        .where(
+          and(
+            eq(meals.id, parseInt(mealId)),
+            isValidUserId(userId) ? eq(meals.userId, userId) : sql`1 = 0`
+          )
+        )
         .limit(1);
 
       if (!meal.length) {
@@ -1147,20 +1164,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ message: "Invalid input", errors: result.error.format() });
       }
 
-      const newMealItem = await db
-        .insert(mealFoodItems)
-        .values(result.data)
-        .returning();
+      const insertResult = await db.insert(mealFoodItems).values(result.data);
+      const [newMealItem] = await db
+        .select()
+        .from(mealFoodItems)
+        .where(sql`${mealFoodItems.id} = LAST_INSERT_ID()`);
 
       // Get food item details
       const foodItem = await db
         .select()
         .from(foodItems)
-        .where(eq(foodItems.id, newMealItem[0].foodItemId))
+        .where(eq(foodItems.id, newMealItem.foodItemId))
         .limit(1);
 
       res.status(201).json({
-        ...newMealItem[0],
         name: foodItem[0]?.name,
         brand: foodItem[0]?.brand,
         calories: foodItem[0]?.calories,
@@ -1185,7 +1202,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(nutritionGoals)
         .where(
           and(
-            eq(nutritionGoals.userId, userId),
+            isValidUserId(userId)
+              ? eq(nutritionGoals.userId, userId)
+              : sql`1 = 0`,
             eq(nutritionGoals.active, true)
           )
         )
@@ -1224,17 +1243,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ active: false })
         .where(
           and(
-            eq(nutritionGoals.userId, userId),
+            isValidUserId(userId)
+              ? eq(nutritionGoals.userId, userId)
+              : sql`1 = 0`,
             eq(nutritionGoals.active, true)
           )
         );
 
       // Create new goal
-      const newGoal = await db
-        .insert(nutritionGoals)
-        .values(result.data)
-        .returning();
-      res.status(201).json(newGoal[0]);
+      const insertResult = await db.insert(nutritionGoals).values(result.data);
+      const [newGoal] = await db
+        .select()
+        .from(nutritionGoals)
+        .where(sql`${nutritionGoals.id} = LAST_INSERT_ID()`);
+      res.status(201).json(newGoal);
     } catch (error) {
       console.error("Error creating nutrition goal:", error);
       res.status(500).json({ message: "An error occurred" });
@@ -1250,7 +1272,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const recentMeasurements = await db
         .select()
         .from(bodyMeasurements)
-        .where(eq(bodyMeasurements.userId, userId))
+        .where(
+          isValidUserId(userId)
+            ? eq(bodyMeasurements.userId, userId)
+            : sql`1 = 0`
+        )
         .orderBy(desc(bodyMeasurements.date))
         .limit(10);
 
@@ -1283,9 +1309,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(bodyMeasurements)
         .where(
           and(
-            eq(bodyMeasurements.userId, userId),
-            gte(bodyMeasurements.date, startDate),
-            lte(bodyMeasurements.date, endDate)
+            userId !== undefined && typeof userId === "number"
+              ? eq(bodyMeasurements.userId, userId)
+              : sql`1 = 0`,
+            gte(bodyMeasurements.date, new Date(startDate)),
+            lte(bodyMeasurements.date, new Date(endDate))
           )
         )
         .orderBy(bodyMeasurements.date);
@@ -1310,11 +1338,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .json({ message: "Invalid input", errors: result.error.format() });
       }
 
-      const newMeasurement = await db
+      const insertResult = await db
         .insert(bodyMeasurements)
-        .values(result.data)
-        .returning();
-      res.status(201).json(newMeasurement[0]);
+        .values(result.data);
+      const [newMeasurement] = await db
+        .select()
+        .from(bodyMeasurements)
+        .where(sql`${bodyMeasurements.id} = LAST_INSERT_ID()`);
+      res.status(201).json(newMeasurement);
     } catch (error) {
       console.error("Error creating body measurement:", error);
       res.status(500).json({ message: "An error occurred" });
@@ -1326,6 +1357,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const db = getDb();
       const userId = req.session.userId;
+      if (!isValidUserId(userId)) {
+        return res.status(401).json({ message: "Invalid user session" });
+      }
 
       const photos = await db
         .select()
