@@ -1,61 +1,26 @@
-// Dual database schema supporting both MySQL and PostgreSQL
-import {
-  pgTable,
-  text as pgText,
-  integer as pgInt,
-  doublePrecision as pgDouble,
-  boolean as pgBoolean,
-  serial as pgSerial,
-  varchar as pgVarchar,
-  date as pgDate,
-  timestamp as pgTimestamp,
-} from "drizzle-orm/pg-core";
+// MySQL database schema
 import {
   mysqlTable,
-  text as mysqlText,
-  int as mysqlInt,
-  double as mysqlDouble,
-  boolean as mysqlBoolean,
-  serial as mysqlSerial,
-  varchar as mysqlVarchar,
-  date as mysqlDate,
-  timestamp as mysqlTimestamp,
+  text,
+  int,
+  double,
+  boolean,
+  serial,
+  varchar,
+  date,
+  timestamp,
 } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Import the database config
-import { dbConfig } from "../server/db.config";
-const dbType = dbConfig.dbType;
-
-// Define table creator based on database type
-const createTable = dbType === "postgres" ? pgTable : mysqlTable;
-const text = dbType === "postgres" ? pgText : mysqlText;
-const integer = dbType === "postgres" ? pgInt : mysqlInt;
-const double = dbType === "postgres" ? pgDouble : mysqlDouble;
-const boolean = dbType === "postgres" ? pgBoolean : mysqlBoolean;
-const serial = dbType === "postgres" ? pgSerial : mysqlSerial;
-const varchar = dbType === "postgres" ? pgVarchar : mysqlVarchar;
-const dateType = dbType === "postgres" ? pgDate : mysqlDate;
-const timestamp = dbType === "postgres" ? pgTimestamp : mysqlTimestamp;
-
-// Type guards to ensure proper typing
-function isPgTable(table: any): table is ReturnType<typeof pgTable> {
-  return dbType === "postgres";
-}
-
-function isMysqlTable(table: any): table is ReturnType<typeof mysqlTable> {
-  return dbType === "mysql";
-}
-
 // User table
-export const users = createTable("users", {
+export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
   username: varchar("username", { length: 100 }).notNull().unique(),
   password: varchar("password", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   fullName: varchar("full_name", { length: 255 }),
-  age: integer("age"),
+  age: int("age"),
   gender: varchar("gender", { length: 50 }),
   height: double("height"),
   weight: double("weight"),
@@ -68,30 +33,30 @@ export const users = createTable("users", {
 });
 
 // Workout Programs
-export const workoutPrograms = createTable("workout_programs", {
+export const workoutPrograms = mysqlTable("workout_programs", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: int("user_id").notNull(),
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
-  frequency: integer("frequency"),
+  frequency: int("frequency"),
   level: varchar("level", { length: 50 }),
   active: boolean("active").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Workout Days
-export const workoutDays = createTable("workout_days", {
+export const workoutDays = mysqlTable("workout_days", {
   id: serial("id").primaryKey(),
-  programId: integer("program_id").notNull(),
+  programId: int("program_id").notNull(),
   name: varchar("name", { length: 100 }).notNull(),
-  dayOfWeek: integer("day_of_week"),
+  dayOfWeek: int("day_of_week"),
   targetMuscleGroups: text("target_muscle_groups"),
-  order: integer("order").notNull(),
+  order: int("order"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Exercises
-export const exercises = createTable("exercises", {
+export const exercises = mysqlTable("exercises", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
@@ -103,49 +68,49 @@ export const exercises = createTable("exercises", {
 });
 
 // Workout Day Exercises
-export const workoutDayExercises = createTable("workout_day_exercises", {
+export const workoutDayExercises = mysqlTable("workout_day_exercises", {
   id: serial("id").primaryKey(),
-  dayId: integer("day_id").notNull(),
-  exerciseId: integer("exercise_id").notNull(),
-  sets: integer("sets"),
+  dayId: int("day_id").notNull(),
+  exerciseId: int("exercise_id").notNull(),
+  sets: int("sets"),
   reps: varchar("reps", { length: 50 }),
   weight: varchar("weight", { length: 50 }),
-  restTime: integer("rest_time"),
-  order: integer("order").notNull(),
+  restTime: int("rest_time"),
+  order: int("order"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Workout Sessions (tracking actual workouts completed)
-export const workoutSessions = createTable("workout_sessions", {
+// Workout Sessions
+export const workoutSessions = mysqlTable("workout_sessions", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  programId: integer("program_id"),
-  dayId: integer("day_id"),
-  date: dateType("date").notNull(),
-  duration: integer("duration"),
+  userId: int("user_id").notNull(),
+  programId: int("program_id"),
+  dayId: int("day_id"),
+  date: date("date").notNull(),
+  duration: int("duration"),
   complete: boolean("complete").default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Workout Set Logs (tracking individual sets completed)
-export const workoutSetLogs = createTable("workout_set_logs", {
+// Workout Set Logs
+export const workoutSetLogs = mysqlTable("workout_set_logs", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull(),
-  exerciseId: integer("exercise_id").notNull(),
-  setNumber: integer("set_number").notNull(),
-  reps: integer("reps").notNull(),
+  sessionId: int("session_id").notNull(),
+  exerciseId: int("exercise_id").notNull(),
+  setNumber: int("set_number").notNull(),
+  reps: int("reps").notNull(),
   weight: double("weight").notNull(),
   complete: boolean("complete").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Food Items
-export const foodItems = createTable("food_items", {
+export const foodItems = mysqlTable("food_items", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
   brand: varchar("brand", { length: 100 }),
-  calories: integer("calories"),
+  calories: int("calories"),
   protein: double("protein"),
   carbs: double("carbs"),
   fat: double("fat"),
@@ -158,21 +123,21 @@ export const foodItems = createTable("food_items", {
 });
 
 // Meals
-export const meals = createTable("meals", {
+export const meals = mysqlTable("meals", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: int("user_id").notNull(),
   name: varchar("name", { length: 100 }).notNull(),
   type: varchar("type", { length: 50 }),
-  date: dateType("date").notNull(),
+  date: date("date").notNull(),
   time: varchar("time", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Meal Food Items
-export const mealFoodItems = createTable("meal_food_items", {
+export const mealFoodItems = mysqlTable("meal_food_items", {
   id: serial("id").primaryKey(),
-  mealId: integer("meal_id").notNull(),
-  foodItemId: integer("food_item_id").notNull(),
+  mealId: int("meal_id").notNull(),
+  foodItemId: int("food_item_id").notNull(),
   servingSize: double("serving_size"),
   servingUnit: varchar("serving_unit", { length: 50 }),
   customServingDescription: varchar("custom_serving_description", {
@@ -182,10 +147,10 @@ export const mealFoodItems = createTable("meal_food_items", {
 });
 
 // Body Measurements
-export const bodyMeasurements = createTable("body_measurements", {
+export const bodyMeasurements = mysqlTable("body_measurements", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  date: dateType("date").notNull(),
+  userId: int("user_id").notNull(),
+  date: date("date").notNull(),
   weight: double("weight"),
   bodyFat: double("body_fat"),
   chest: double("chest"),
@@ -198,20 +163,20 @@ export const bodyMeasurements = createTable("body_measurements", {
 });
 
 // Progress Photos
-export const progressPhotos = createTable("progress_photos", {
+export const progressPhotos = mysqlTable("progress_photos", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  date: dateType("date").notNull(),
+  userId: int("user_id").notNull(),
+  date: date("date").notNull(),
   photoUrl: text("photo_url").notNull(),
   type: varchar("type", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Nutrition Goals
-export const nutritionGoals = createTable("nutrition_goals", {
+export const nutritionGoals = mysqlTable("nutrition_goals", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  dailyCalories: integer("daily_calories"),
+  userId: int("user_id").notNull(),
+  dailyCalories: int("daily_calories"),
   proteinPct: double("protein_pct"),
   carbsPct: double("carbs_pct"),
   fatPct: double("fat_pct"),

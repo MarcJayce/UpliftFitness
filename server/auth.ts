@@ -43,21 +43,19 @@ export async function createUser(
 
     const hashedPassword = await hashPassword(password);
 
-    // Insert user with proper typing
-    const [insertResult] = await db
-      .insert(users)
-      .values({
-        username,
-        email,
-        password: hashedPassword,
-      })
-      .returning();
+    // Insert user and get the insertId
+    const [result] = await db.insert(users).values({
+      username,
+      email,
+      password: hashedPassword,
+    });
 
-    if (!insertResult) {
+    if (!result.insertId) {
       throw new Error("Failed to create user");
     }
 
-    const newUser = insertResult;
+    // Fetch the newly created user
+    const newUser = await getUserById(result.insertId);
     if (!newUser) {
       throw new Error("Failed to retrieve created user");
     }

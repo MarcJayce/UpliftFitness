@@ -1,6 +1,6 @@
 import { users, type User, type InsertUser } from "@shared/schema";
-import { eq } from 'drizzle-orm';
-import { getDb } from './db';
+import { eq } from "drizzle-orm";
+import { getDb } from "./db";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -8,15 +8,15 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
 }
 
-// Implementation using PostgreSQL database
+// Implementation using MySQL database
 export class DbStorage implements IStorage {
   async getUser(id: number): Promise<User | undefined> {
     try {
       const db = getDb();
       const results = await db.select().from(users).where(eq(users.id, id));
-      return results.length > 0 ? results[0] : undefined;
+      return results[0];
     } catch (error) {
-      console.error('Error getting user by ID:', error);
+      console.error("Error getting user by ID:", error);
       return undefined;
     }
   }
@@ -24,10 +24,13 @@ export class DbStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     try {
       const db = getDb();
-      const results = await db.select().from(users).where(eq(users.username, username));
-      return results.length > 0 ? results[0] : undefined;
+      const results = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username));
+      return results[0];
     } catch (error) {
-      console.error('Error getting user by username:', error);
+      console.error("Error getting user by username:", error);
       return undefined;
     }
   }
@@ -38,18 +41,23 @@ export class DbStorage implements IStorage {
       const now = new Date();
       const userWithCreatedAt = {
         ...insertUser,
-        createdAt: now
+        createdAt: now,
       };
-      
-      // For PostgreSQL, .returning() works correctly
-      const results = await db.insert(users).values(userWithCreatedAt).returning();
-      
-      if (results.length === 0) {
-        throw new Error('Failed to create user');
+
+      const [result] = await db.insert(users).values(userWithCreatedAt);
+
+      if (!result.insertId) {
+        throw new Error("Failed to create user");
       }
-      return results[0];
+
+      const user = await this.getUser(result.insertId);
+      if (!user) {
+        throw new Error("Failed to fetch created user");
+      }
+
+      return user;
     } catch (error) {
-      console.error('Error creating user:', error);
+      console.error("Error creating user:", error);
       throw error;
     }
   }
@@ -71,7 +79,7 @@ export class MemStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+      (user) => user.username === username
     );
   }
 
@@ -79,8 +87,8 @@ export class MemStorage implements IStorage {
     const id = this.currentId++;
     const now = new Date();
     // Making sure all required fields are present with proper types
-    const user: User = { 
-      ...insertUser, 
+    const user: User = {
+      ...insertUser,
       id,
       createdAt: now,
       fullName: insertUser.fullName || null,
@@ -91,8 +99,11 @@ export class MemStorage implements IStorage {
       bodyFat: insertUser.bodyFat || null,
       activityLevel: insertUser.activityLevel || null,
       goal: insertUser.goal || null,
-      units: insertUser.units || 'metric',
-      notifications: insertUser.notifications !== undefined ? insertUser.notifications : true
+      units: insertUser.units || "metric",
+      notifications:
+        insertUser.notifications !== undefined
+          ? insertUser.notifications
+          : true,
     };
     this.users.set(id, user);
     return user;
